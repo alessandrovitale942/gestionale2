@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Stato della tua riparazione</title>
+<style>
+:root{--ink:#14171d;--mute:#6b7385;--line:#e4e7ee;--bg:#f4f5f8;--acc:#ff7a1a;--ok:#16a34a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"DM Sans",system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;padding:20px 16px 40px}
+main{max-width:460px;margin:0 auto}
+.neg{font-weight:800;font-size:20px;letter-spacing:-.01em;margin:6px 2px 16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px 20px;box-shadow:0 8px 30px rgba(20,23,29,.06)}
+.sc{font-size:13px;color:var(--mute)}
+.dev{font-weight:700;font-size:19px;margin:2px 0 14px}
+.big{font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.sub{color:var(--mute);font-size:14px;margin-top:6px}
+.tl{list-style:none;margin:22px 0 4px;position:relative}
+.tl li{display:flex;gap:14px;align-items:flex-start;padding-bottom:18px;position:relative;color:var(--mute);font-size:15px}
+.tl li:last-child{padding-bottom:0}
+.tl li::before{content:"";position:absolute;left:10px;top:22px;bottom:-2px;width:2px;background:var(--line)}
+.tl li:last-child::before{display:none}
+.dot{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);background:#fff;display:grid;place-items:center;font-size:12px;color:#fff}
+.tl li.fatto{color:var(--ink)}.tl li.fatto .dot{background:var(--ok);border-color:var(--ok)}
+.tl li.fatto::before{background:var(--ok)}
+.tl li.ora{color:var(--ink);font-weight:700}.tl li.ora .dot{border-color:var(--acc);background:var(--acc);box-shadow:0 0 0 5px rgba(255,122,26,.18)}
+.nota{margin-top:16px;padding:10px 12px;border-radius:12px;background:#fff7ed;color:#9a4a07;font-size:14px}
+.azioni{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.azioni a{flex:1;min-width:130px;text-align:center;text-decoration:none;font-weight:600;font-size:15px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);color:var(--ink);background:#fff}
+.azioni a.p{background:var(--acc);border-color:var(--acc);color:#fff}
+.foot{margin-top:16px;font-size:12px;color:var(--mute);text-align:center;line-height:1.5}
+@media(prefers-reduced-motion:no-preference){.tl li.ora .dot{animation:pl 1.8s ease-in-out infinite}@keyframes pl{50%{box-shadow:0 0 0 9px rgba(255,122,26,.06)}}}
+</style>
+</head>
+<body>
+<main id="app"><div class="card"><p class="sub">Carico lo stato della riparazione...</p></div></main>
+<script>
+// Indirizzo del database (lo stesso di cloud.js). La pagina legge solo il tuo stato, con il codice del link.
+var DB = 'https://repair-pro-cc900-default-rtdb.europe-west1.firebasedatabase.app';
+var PASSI = ['Ricevuto', 'Diagnosi', 'Preventivo', 'Riparazione', 'Pronto per il ritiro', 'Consegnato'];
+// stato -> [titolo, passo attuale, messaggio per il cliente]
+var MAPPA = {
+  'In attesa': ['Ricevuto', 0, 'Abbiamo ricevuto il tuo dispositivo e lo prenderemo in carico a breve.'],
+  'In diagnosi': ['In diagnosi', 1, 'Stiamo controllando il dispositivo per capire il problema.'],
+  'Preventivo inviato': ['Preventivo inviato', 2, 'Ti abbiamo inviato il preventivo: attendiamo la tua conferma.'],
+  'Preventivo approvato': ['Preventivo approvato', 3, 'Grazie per la conferma! Iniziamo la riparazione.'],
+  'Preventivo rifiutato': ['Preventivo non accettato', 2, 'Hai scelto di non procedere con la riparazione. Puoi passare a ritirare il dispositivo.'],
+  'Ricambio ordinato': ['In attesa del ricambio', 3, 'Abbiamo ordinato il ricambio: ti aggiorniamo appena arriva.'],
+  'In lavorazione': ['In lavorazione', 3, 'Stiamo lavorando alla riparazione.'],
+  'In collaudo': ['Collaudo finale', 3, 'La riparazione \u00e8 completata: stiamo eseguendo i controlli finali.'],
+  'Pronto': ['Pronto per il ritiro', 4, 'Il tuo dispositivo \u00e8 pronto! Puoi passare in negozio a ritirarlo.'],
+  'Consegnato': ['Consegnato', 5, 'Il dispositivo \u00e8 stato consegnato. Grazie per averci scelto!']
+};
+function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function numeri(t) {
+  var out = [], vis = {};
+  String(t || '').split(/[\/;,|\n]+|\s[-\u2013\u2014]\s|\s(?:e|o|oppure)\s/i).forEach(function(p) {
+    var s = p.replace(/[^\d\s+.\-]/g, ' ').trim();
+    if (s.replace(/\D/g, '').length < 6) return;
+    // piu numeri scritti di seguito (es. "081 1234567 333 1234567"): li riconosco dall'inizio, fisso con 0... e cellulare con 3...
+    var m = s.match(/(?:\+?39[\s.]*)?(?:0\d{1,3}[\s.\-]*\d{4,8}|3\d{2}[\s.\-]*\d{6,7})/g);
+    (m && m.length > 1 ? m : [s]).forEach(function(n) {
+      var d = n.replace(/[^\d+]/g, '');
+      if (d.replace(/\D/g, '').length < 6 || vis[d]) return;
+      vis[d] = 1; out.push({ d: d, t: n.replace(/\s+/g, ' ').trim() });
+    });
+  });
+  return out;
+}
+function num(t) { var d = String(t || '').replace(/\D/g, ''); if (d.indexOf('00') === 0) d = d.slice(2); if (d.length === 10 && d.charAt(0) === '3') d = '39' + d; return d; }
+function quando(ms) { if (!ms) return ''; var d = new Date(ms); return d.toLocaleDateString('it-IT') + ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }); }
+function giorno(iso) { var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
+function passo(r) { return (MAPPA[r.s] || MAPPA['In attesa'])[1]; }
+function messaggio(r) {
+  if (r.e === 'Irriparabile') return ['Esito della verifica', 'Purtroppo il dispositivo non risulta riparabile. Ti contatteremo per spiegarti le alternative.'];
+  var m = MAPPA[r.s] || MAPPA['In attesa']; return [m[0], m[2]];
+}
+function mostra(r) {
+  var i = passo(r), m = messaggio(r), h = '<div class="neg">' + esc(r.neg || 'La tua riparazione') + '</div><div class="card">'
+    + '<div class="sc">Scheda n. ' + esc(String(r.n || '').padStart(4, '0')) + '</div><div class="dev">' + esc(r.d || 'Dispositivo') + '</div>'
+    + '<div class="big">' + esc(m[0]) + '</div><div class="sub">' + esc(m[1]) + '</div>';
+  h += '<ul class="tl">' + PASSI.map(function(p, k) { return '<li class="' + (k < i ? 'fatto' : k === i ? 'ora' : '') + '"><span class="dot">' + (k < i ? '&#10003;' : '') + '</span><span>' + esc(p) + '</span></li>'; }).join('') + '</ul>';
+  if (r.c && i < 4 && giorno(r.c)) h += '<div class="nota">Consegna prevista: <b>' + esc(giorno(r.c)) + '</b></div>';
+  var N = numeri(r.tel), mob = N.filter(function(n) { return /^(\+?39)?3/.test(n.d); })[0];
+  h += '<div class="azioni">' + N.map(function(n, k) { return '<a' + (k ? '' : ' class="p"') + ' href="tel:' + esc(n.d) + '">Chiama ' + esc(n.t) + '</a>'; }).join('') + (mob ? '<a href="https://wa.me/' + esc(num(mob.d)) + '">WhatsApp</a>' : '') + '</div>';
+  h += '<div class="foot">Ultimo aggiornamento: ' + esc(quando(r.u)) + '<br>Questa pagina mostra solo lo stato della riparazione.</div></div>';
+  document.getElementById('app').innerHTML = h;
+}
+function errore(t, s) { document.getElementById('app').innerHTML = '<div class="card"><div class="big">' + esc(t) + '</div><div class="sub">' + esc(s) + '</div></div>'; }
+function carica() {
+  var c = new URLSearchParams(location.search).get('c') || '';
+  if (!/^[a-z0-9]{10,40}$/.test(c)) { errore('Link non valido', 'Controlla di aver aperto il link o il QR riportato sulla tua ricevuta.'); return; }
+  fetch(DB + '/stato/' + encodeURIComponent(c) + '.json', { cache: 'no-store' }).then(function(r) { return r.json(); }).then(function(r) {
+    if (!r || (r.n == null && !r.s)) errore('Riparazione non trovata', 'Il link potrebbe essere scaduto. Contatta il negozio.'); else mostra(r);
+  }).catch(function() { if (!document.querySelector('.tl')) errore('Non riesco a leggere lo stato', 'Controlla la connessione e riprova tra poco.'); });
+}
+carica(); setInterval(carica, 60000);
+</script>
+</body>
+</html>
