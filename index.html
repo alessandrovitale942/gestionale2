@@ -487,6 +487,7 @@ button:focus-visible,.inp:focus-visible{outline:2px solid var(--amber);outline-o
           <input class="inp" id="ric-fp" type="number" placeholder="Prezzo acquisto EUR">
           <input class="inp" id="ric-fv" type="number" placeholder="Prezzo vendita EUR">
         </div>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;margin-top:10px;cursor:pointer"><input type="checkbox" id="ric-fauto"> Stampa l'etichetta 50x30 a ogni lettura</label>
         <div style="font-size:12px;color:#8b94a7;margin-top:8px">Imposta i dati una volta, poi spara i codici: ogni lettura crea una scheda in stato &quot;Da testare&quot;.</div>
       </div>
     </div>
@@ -1089,6 +1090,7 @@ button:focus-visible,.inp:focus-visible{outline:2px solid var(--amber);outline-o
       <div id="ric-sto" style="font-size:12px;color:#8b94a7;margin-top:8px"></div>
     </div>
     <div class="modal-ft">
+      <button class="btn btn-g" onclick="ricEtichetta(+$r('ric-id').value)">Stampa etichetta</button>
       <button class="btn btn-g" onclick="chiudiM('modal-ric')">Annulla</button>
       <button class="btn btn-p" onclick="ricSalva()">Salva</button>
     </div>
@@ -4342,8 +4344,9 @@ function ricTrova(code) {
   return null;
 }
 function ricCampi(code) { return /^\d{15}$/.test(code) ? { imei: code } : { sn: code }; }
+function ricPulisci(c) { return String(c || '').replace(/[\x00-\x1f\x7f]/g, '').trim().replace(/^[a-z](?=\d{8,}$)/, ''); }
 function ricScan(code) {
-  code = String(code || '').trim(); if (!code) return;
+  code = ricPulisci(code); if (!code) return;
   var it = ricTrova(code);
   if (it) {
     if ($r('ric-fast').checked) { ricBeep(0); showToast('Gi\u00e0 in magazzino', it.cod + ' - ' + it.mod); return; }
@@ -4358,6 +4361,7 @@ function ricCaricoRapido(code) {
   var f = ricCampi(code); RICID++;
   var o = { id: RICID, cod: 'RIC-' + String(RICID).padStart(4, '0'), cond: ricCond, cat: 'Smartphone', mod: m, mem: $r('ric-fmem').value.trim(), imei: f.imei || '', imei2: '', sn: f.sn || '', bc: '', ub: '', st: ricSt()[0][0], gr: $r('ric-fg').value, bat: '', ck: [], blk: false, rst: false, forn: $r('ric-ff').value.trim(), dac: ricOggi(), reg: ricCond === 'new' ? 'Ordinario 22%' : 'Margine (beni usati)', pac: parseFloat($r('ric-fp').value) || 0, cri: 0, pve: parseFloat($r('ric-fv').value) || 0, vcl: '', vda: '', vpr: 0, gar: ricCond === 'new' ? 24 : 12, note: '', ts: Date.now(), storia: [{ s: ricSt()[0][0], t: Date.now() }] };
   RIC.unshift(o); ricSalvaDati(); ricBeep(1); ricSess++; ricRender();
+  if ($r('ric-fauto').checked) ricEtichetta(o.id, 1);
   var el = $r('ric-count'); showToast('Caricato ' + o.cod, m + ' (' + ricSess + ' in questa sessione)'); $r('ric-scan').focus();
 }
 function ricNuovo(code) {
@@ -4385,7 +4389,7 @@ function ricApri(id) {
 function ricSalva() {
   var mod = $r('ric-mod').value.trim(); if (!mod) { alert('Inserisci marca e modello'); return; }
   var id = $r('ric-id').value, nuovo = id === '';
-  var o = { cond: ricCond, cat: $r('ric-cat').value, mod: mod, mem: $r('ric-mem').value.trim(), imei: $r('ric-imei').value.trim(), imei2: $r('ric-imei2').value.trim(), sn: $r('ric-sn').value.trim(), bc: $r('ric-bc').value.trim(), ub: $r('ric-ub').value.trim(), st: $r('ric-st').value, gr: $r('ric-gr').value, bat: $r('ric-bat').value, ck: [].slice.call(document.querySelectorAll('.ric-c')).filter(function (x) { return x.checked; }).map(function (x) { return x.value; }), blk: $r('ric-blk').checked, rst: $r('ric-rst').checked, forn: $r('ric-for').value.trim(), dac: $r('ric-dac').value, reg: $r('ric-reg').value, pac: parseFloat($r('ric-pac').value) || 0, cri: parseFloat($r('ric-cri').value) || 0, pve: parseFloat($r('ric-pve').value) || 0, vcl: $r('ric-vcl').value.trim(), vda: $r('ric-vda').value, gar: parseInt($r('ric-gar').value) || 0, note: $r('ric-note').value.trim() };
+  var o = { cond: ricCond, cat: $r('ric-cat').value, mod: mod, mem: $r('ric-mem').value.trim(), imei: ricPulisci($r('ric-imei').value), imei2: ricPulisci($r('ric-imei2').value), sn: ricPulisci($r('ric-sn').value), bc: ricPulisci($r('ric-bc').value), ub: $r('ric-ub').value.trim(), st: $r('ric-st').value, gr: $r('ric-gr').value, bat: $r('ric-bat').value, ck: [].slice.call(document.querySelectorAll('.ric-c')).filter(function (x) { return x.checked; }).map(function (x) { return x.value; }), blk: $r('ric-blk').checked, rst: $r('ric-rst').checked, forn: $r('ric-for').value.trim(), dac: $r('ric-dac').value, reg: $r('ric-reg').value, pac: parseFloat($r('ric-pac').value) || 0, cri: parseFloat($r('ric-cri').value) || 0, pve: parseFloat($r('ric-pve').value) || 0, vcl: $r('ric-vcl').value.trim(), vda: $r('ric-vda').value, gar: parseInt($r('ric-gar').value) || 0, note: $r('ric-note').value.trim() };
   var dup = null;
   RIC.forEach(function (x) { if (String(x.id) === id) return; [o.imei, o.imei2, o.sn, o.bc].forEach(function (c) { if (c && [x.imei, x.imei2, x.sn, x.bc].some(function (y) { return y && ricNorm(y) === ricNorm(c); })) dup = x; }); });
   if (dup) { alert('Codice gi\u00e0 presente nella scheda ' + dup.cod + ' (' + dup.mod + ').'); return; }
@@ -4428,8 +4432,38 @@ function ricRender() {
     return '<tr><td><code style="color:#ff8800">' + _rcEsc(r.cod) + '</code></td><td style="font-family:\'DM Mono\',monospace;font-size:12px">' + _rcEsc(r.imei || r.sn || r.bc || '-') + '</td><td><b>' + _rcEsc(r.mod) + '</b> <span style="color:#8b94a7;font-size:12px">' + _rcEsc(r.mem || '') + '</span>' + (r.ub ? '<div style="font-size:11px;color:#8b94a7">Scaffale ' + _rcEsc(r.ub) + '</div>' : '') + '</td><td><b>' + _rcEsc(r.gr) + '</b></td>'
       + '<td><select class="inp" style="width:auto;padding:4px 6px;font-size:12px;color:' + col + '" data-i="' + r.id + '" onchange="ricCambiaStato(+this.dataset.i,this.value)">' + ricSt().map(function (s) { return '<option' + (s[0] === r.st ? ' selected' : '') + '>' + s[0] + '</option>'; }).join('') + '</select></td>'
       + '<td>' + (r.bat !== '' && r.bat != null ? _rcEsc(r.bat) + '%' : '-') + '</td><td>' + ricE(costo) + '</td><td>' + (r.pve ? ricE(r.pve) + (m != null ? '<div style="font-size:11px;color:' + (m >= 0 ? '#40d080' : '#ff4444') + '">marg. ' + ricE(m) + '</div>' : '') : '-') + '</td>'
-      + '<td style="white-space:nowrap"><button class="btn btn-g btn-sm" style="border-color:#ffaa00;color:#ffaa00;margin-right:3px" data-i="' + r.id + '" onclick="ricApri(+this.dataset.i)">Apri</button><button class="btn btn-d btn-sm" data-i="' + r.id + '" onclick="ricElimina(+this.dataset.i)">X</button></td></tr>';
+      + '<td style="white-space:nowrap"><button class="btn btn-g btn-sm" style="margin-right:3px" data-i="' + r.id + '" onclick="ricEtichetta(+this.dataset.i)">Etichetta</button><button class="btn btn-g btn-sm" style="border-color:#ffaa00;color:#ffaa00;margin-right:3px" data-i="' + r.id + '" onclick="ricApri(+this.dataset.i)">Apri</button><button class="btn btn-d btn-sm" data-i="' + r.id + '" onclick="ricElimina(+this.dataset.i)">X</button></td></tr>';
   }).join('');
+}
+['imei', 'imei2', 'sn', 'bc'].forEach(function (k) { var e = $r('ric-' + k); if (e) e.addEventListener('change', function () { e.value = ricPulisci(e.value); }); });
+var C128 = '212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 221312 231212 112232 122132 122231 113222 123122 123221 223211 221132 221231 213212 223112 312131 311222 321122 321221 312212 322112 322211 212123 212321 232121 111323 131123 131321 112313 132113 132311 211313 231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 231131 213113 213311 213131 311123 311321 331121 312113 312311 332111 314111 221411 431111 111224 111422 121124 121421 141122 141221 112214 112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 111242 121142 121241 114212 124112 124211 411212 421112 421211 212141 214121 412121 111143 111341 131141 114113 114311 411113 411311 113141 114131 311141 411131 211412 211214 211232'.split(' ');
+function c128(t) {
+  t = String(t); var v = [], i, d = /^\d+$/.test(t) && t.length >= 4;
+  if (d) { var st = 0; if (t.length % 2) { v.push(104, t.charCodeAt(0) - 32, 99); st = 1; } else v.push(105); for (i = st; i < t.length; i += 2) v.push(+t.substr(i, 2)); }
+  else { v.push(104); for (i = 0; i < t.length; i++) { var k = t.charCodeAt(i); v.push(k >= 32 && k <= 126 ? k - 32 : 0); } }
+  var s = v[0]; for (i = 1; i < v.length; i++) s += v[i] * i; v.push(s % 103);
+  return v.map(function (x) { return C128[x]; }).join('') + '2331112';
+}
+function ricBarSvg(t, hmm, maxmm) {
+  var w = c128(t), x = 10, b = '', i;
+  for (i = 0; i < w.length; i++) { var n = +w[i]; if (i % 2 === 0) b += '<rect x="' + x + '" width="' + n + '" height="1"/>'; x += n; }
+  var tot = x + 10, mw = Math.min(0.25, maxmm / tot);
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + tot + ' 1" preserveAspectRatio="none" shape-rendering="crispEdges" fill="#000" style="width:' + (tot * mw).toFixed(2) + 'mm;height:' + hmm + 'mm">' + b + '</svg>';
+}
+function ricEtichetta(id, n) {
+  var r = null; RIC.forEach(function (x) { if (x.id === id) r = x; });
+  if (!r) { alert('Salva prima la scheda.'); return; }
+  if (!n) { n = parseInt(prompt('Quante etichette stampare?', '1'), 10); if (!n || n < 1) return; }
+  n = Math.min(n, 50);
+  var E = _rcEsc, code = r.imei || r.sn || r.bc || r.cod;
+  var det = [r.mem, r.gr === 'Nuovo' ? 'Nuovo' : 'Grado ' + r.gr, r.bat !== '' && r.bat != null ? 'Batt. ' + r.bat + '%' : ''].filter(Boolean).join(' \u00b7 ');
+  var pr = r.pve ? '&euro;' + (r.pve % 1 ? r.pve.toFixed(2) : r.pve) : E(r.cod);
+  var one = '<div class="l"><div class="m">' + E(r.mod) + '</div><div class="d">' + E(det) + '</div><div class="b">' + ricBarSvg(code, 12, 46) + '</div><div class="f"><span>' + E(code) + '</span><b>' + pr + '</b></div></div>';
+  var f = document.createElement('iframe'); f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'; document.body.appendChild(f);
+  var d = f.contentWindow.document; d.open();
+  d.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etichetta</title><style>@page{size:50mm 30mm;margin:0}*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#000}.l{width:50mm;height:30mm;padding:1.3mm 2mm;overflow:hidden;page-break-after:always}.l:last-child{page-break-after:auto}.m{font-weight:700;font-size:9.5pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.d{font-size:6.5pt;white-space:nowrap;overflow:hidden;margin-bottom:.6mm}.b{text-align:center;height:12mm;line-height:0}.f{display:flex;justify-content:space-between;align-items:baseline;font-size:7pt;font-family:monospace}.f b{font-family:Arial,sans-serif;font-size:10pt}</style></head><body>' + new Array(n + 1).join(one) + '</body></html>');
+  d.close();
+  setTimeout(function () { f.contentWindow.focus(); f.contentWindow.print(); setTimeout(function () { f.remove(); }, 60000); }, 300);
 }
 // pistola lettore: se non sei in un campo di testo, le letture veloci terminate da Invio vengono catturate comunque
 var _rb = '', _rt = 0;
